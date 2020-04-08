@@ -13,24 +13,30 @@ module RelativeComparison
 
   class Root
     attr_reader :nodes
+    attr_accessor :default_metric
 
-    def initialize(values_list=[])
+    def initialize(values_list=[], default_metric: 1)
       @nodes = {}
+      @default_metric = default_metric
 
       values_list.each {|values|
         regist_values(values)
       }
     end
 
-    def regist_values(values)
+    def regist_pair(left_value, right_value, metric: nil)
+      regist_values([left_value, right_value], metric: metric)
+    end
+
+    def regist_values(values, metric: nil)
       values.each_with_index {|value,i|
         lefts = values[0...i]
         rights = values[(i+1)..-1]
-        regist_value(value, lefts, rights)
+        regist_value(value, lefts, rights, metric: metric)
       }
     end
 
-    def regist_value(value, lefts, rights)
+    def regist_value(value, lefts, rights, metric: nil)
       @nodes[value] ||= Node.new(value, self)
 
       lefts = lefts.reverse
@@ -51,6 +57,8 @@ module RelativeComparison
       @nodes[value].lefts << lefts
       @nodes[value].rights << rights
 
+      @nodes[value].update_metric(lefts.first, metric)
+      @nodes[value].update_metric(rights.first, metric)
     end
 
     def node(value)
@@ -135,16 +143,25 @@ module RelativeComparison
 
   class Node
     attr_reader :value
-    attr_accessor :metric
+    attr_accessor :metrics
     attr_accessor :lefts
     attr_accessor :rights
 
-    def initialize(value, root, metric: 1)
+    def initialize(value, root)
       @value = value
-      @metric = metric
+      @metrics = {}
       @lefts = Neighbor.new
       @rights = Neighbor.new
       @root = root
+    end
+
+    def update_metric(dst, metric)
+      return if !dst
+      @metrics[dst] = metric
+    end
+
+    def metric(dst)
+      @metrics[dst] || @root.default_metric
     end
 
     def compare(dst, &block)
@@ -186,7 +203,7 @@ module RelativeComparison
     end
 
     def left_traceroutes(dst, route=TraceRoute.new_left)
-      return [] if route.include?(self)
+      return [] if route.nodes.include?(self)
       route = route.hop(self)
 
       return [route] if @value==dst
@@ -197,7 +214,7 @@ module RelativeComparison
     end
 
     def right_traceroutes(dst, route=TraceRoute.new_right)
-      return [] if route.include?(self)
+      return [] if route.nodes.include?(self)
       route = route.hop(self)
 
       return [route] if @value==dst
@@ -310,21 +327,34 @@ module RelativeComparison
 
     attr_reader :direction
 
-    def initialize(direction, nodes=[])
+    def initialize(direction, hops=[])
       @direction = direction
-      @nodes = nodes
+      @hops = hops
     end
 
     def each(&block)
-      @nodes.each(&block)
+      @hops.each(&block)
     end
 
-    def hop(a)
-      self.class.new(@direction, @nodes + [a])
+    def nodes(&block)
+      @hops.map(&:node).each(&block)
+    end
+
+    def hop(node)
+      met = 0
+      if 0<@hops.length
+        met = @hops.last.node.metric(node.value)
+      end
+      hop = TraceHop.new(node, met)
+      self.class.new(@direction, @hops + [hop])
+    end
+
+    def hop_count
+      @hops.length - 1
     end
 
     def metric
-      @nodes[1..-1].map(&:metric).sum
+      @hops.map(&:metric).sum
     end
 
     def relative_metric
@@ -338,6 +368,16 @@ module RelativeComparison
 
     def self.new_right
       new(RIGHT)
+    end
+  end
+
+  class TraceHop
+    attr_reader :node
+    attr_reader :metric
+
+    def initialize(node, metric)
+      @node = node
+      @metric = metric
     end
   end
 
