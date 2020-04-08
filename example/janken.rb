@@ -11,7 +11,7 @@ root = RelativeComparison::Root.new([
 puts "グーからパーへの経路"
 routes = root.traceroutes("グー", "パー")
 routes.each {|route|
-  puts "方向=#{route.direction}, 距離=#{route.metric}, 経路=#{route.map(&:value)}"
+  puts "方向=#{route.direction}, 距離=#{route.metric}, 経路=#{route.nodes.map(&:value)}"
 }
 puts
 
