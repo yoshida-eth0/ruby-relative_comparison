@@ -1,10 +1,10 @@
 require 'set'
 
 
-module HighLow
+module RelativeComparison
 
   CONFLICT_COMPARE = ->(a,b){ 0 }
-  CONFLICT_SRICT_COMPARE = ->(a,b,routes){ routes.first&.metric || 0 }
+  CONFLICT_SRICT_COMPARE = ->(a,b,routes){ routes.first&.relative_metric || 0 }
 
   def self.merge(values_list, &block)
     Root.new(values_list).to_a(&block)
@@ -182,7 +182,7 @@ module HighLow
     end
 
     def traceroutes(dst)
-      left_traceroutes(dst) + right_traceroute(dst)
+      left_traceroutes(dst) + right_traceroutes(dst)
     end
 
     def left_traceroutes(dst, route=TraceRoute.new_left)
